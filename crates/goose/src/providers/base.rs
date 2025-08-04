@@ -286,6 +286,14 @@ pub trait Provider: Send + Sync {
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
 
+    /// Configure this provider interactively (i.e., use gets prompted with a URL and auth code) 
+    async fn configure_interactively() -> Result<bool, crate::config::ConfigError>
+    where
+        Self: Sized,
+    {
+        Ok(false) 
+    }
+
     /// Optional hook to fetch supported models asynchronously.
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
@@ -524,5 +532,15 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_provider_configure_interactively() {
+        use crate::providers::testprovider::TestProvider;
+        
+        // Test that default implementation returns false 
+        let result = TestProvider::configure_interactively().await;
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
     }
 }
