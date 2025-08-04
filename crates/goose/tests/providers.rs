@@ -623,6 +623,17 @@ async fn test_xai_provider() -> Result<()> {
     test_provider("Xai", &["XAI_API_KEY"], None, xai::XaiProvider::default).await
 }
 
+#[tokio::test]
+async fn test_github_copilot_provider() -> Result<()> {
+    test_provider(
+        "GithubCopilot",
+        &["GITHUB_COPILOT_TOKEN"],
+        None,
+        goose::providers::githubcopilot::GithubCopilotProvider::default,
+    )
+    .await
+}
+
 // Print the final test report
 #[ctor::dtor]
 fn print_test_report() {
