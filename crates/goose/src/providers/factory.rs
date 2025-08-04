@@ -9,6 +9,7 @@ use super::{
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
+    githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
     groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
