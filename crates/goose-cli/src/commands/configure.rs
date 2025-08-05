@@ -14,7 +14,7 @@ use goose::config::{
     PermissionManager,
 };
 use goose::message::Message;
-use goose::providers::{create, providers};
+use goose::providers::{base::Provider, create, providers};
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
 use serde_json::Value;
@@ -276,9 +276,34 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .find(|p| &p.name == provider_name)
         .expect("Selected provider must exist in metadata");
 
-    // Configure required provider keys
+    // Try provider-specific interactive configuration first
+    let interactive_completed = match provider_name.as_str() {
+        "github_copilot" => {
+            use goose::providers::githubcopilot::GithubCopilotProvider;
+            match GithubCopilotProvider::configure_interactively().await {
+                Ok(completed) => {
+                    if completed {
+                        let _ = cliclack::log::success("OAuth setup completed successfully!");
+                    }
+                    completed
+                }
+                Err(e) => {
+                    let _ = cliclack::log::error(format!("OAuth setup failed: {}", e));
+                    false
+                }
+            }
+        }
+        _ => false, // No interactive setup for other providers
+    };
+
+    // Configure required provider keys (skip if interactive setup completed)
     for key in &provider_meta.config_keys {
         if !key.required {
+            continue;
+        }
+
+        // Skip key processing if interactive setup already handled it
+        if interactive_completed && key.secret {
             continue;
         }
 

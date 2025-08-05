@@ -394,6 +394,28 @@ impl Provider for GithubCopilotProvider {
         self.model.clone()
     }
 
+    async fn configure_interactively() -> Result<bool, crate::config::ConfigError> {
+        let config = Config::global();
+        
+        if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
+            tracing::debug!("GitHub Copilot token already exists in configuration");
+            return Ok(true);
+        }
+        
+        tracing::info!("Starting GitHub Copilot OAuth authentication flow");
+        
+        let provider = Self::from_env(ModelConfig::new_or_fail(GITHUB_COPILOT_DEFAULT_MODEL))
+            .map_err(|e| crate::config::ConfigError::DeserializeError(e.to_string()))?;
+        
+        let token = provider.get_access_token().await
+            .map_err(|e| crate::config::ConfigError::DeserializeError(format!("OAuth flow failed: {}", e)))?;
+        
+        config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token))?;
+        
+        tracing::info!("GitHub Copilot OAuth authentication completed successfully");
+        Ok(true)
+    }
+
     #[tracing::instrument(
         skip(self, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -460,5 +482,50 @@ impl Provider for GithubCopilotProvider {
             .collect();
         models.sort();
         Ok(Some(models))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_github_copilot_provider_metadata() {
+        let metadata = GithubCopilotProvider::metadata();
+        
+        assert_eq!(metadata.name, "github_copilot");
+        assert_eq!(metadata.display_name, "Github Copilot");
+        assert_eq!(metadata.default_model, GITHUB_COPILOT_DEFAULT_MODEL);
+        assert_eq!(metadata.config_keys.len(), 1);
+
+        let config_key = &metadata.config_keys[0];
+        assert_eq!(config_key.name, "GITHUB_COPILOT_TOKEN");
+        assert!(config_key.required);
+        assert!(config_key.secret);
+        assert!(config_key.default.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_configure_interactively_with_existing_token() {
+        use crate::config::Config; 
+        use serde_json::Value;
+        
+        let config = Config::global();
+        let original_token: Result<String, _> = config.get_secret("GITHUB_COPILOT_TOKEN");
+        
+        config.set_secret("GITHUB_COPILOT_TOKEN", Value::String("test_token".to_string())).unwrap();
+        
+        let result = GithubCopilotProvider::configure_interactively().await;
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+        
+        match original_token {
+            Ok(token) => {
+                config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token)).unwrap();
+            }
+            Err(_) => {
+                let _ = config.delete_secret("GITHUB_COPILOT_TOKEN");
+            }
+        }
     }
 }
